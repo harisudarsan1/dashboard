@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Injectable, NgModuleFactory} from '@angular/core';
+import { Injectable, NgModuleFactory } from '@angular/core';
 
-import {PLUGIN_EXTERNALS_MAP} from './pluginexternals';
-import {PluginLoaderService} from './pluginloader.service';
-import {PluginsConfigService} from '../global/plugin';
+import { PLUGIN_EXTERNALS_MAP } from './pluginexternals';
+import { PluginLoaderService } from './pluginloader.service';
+import { PluginsConfigService } from '../global/plugin';
 
+import { EndpointManager, Resource } from '@common/services/resource/endpoint';
 const systemJS = window.System;
 
 @Injectable()
 export class ClientPluginLoaderService extends PluginLoaderService {
+
+  endpoint = EndpointManager.resource(Resource.plugin, true).detail();
+
   constructor(private pluginsConfigService_: PluginsConfigService) {
     super();
   }
@@ -36,6 +40,8 @@ export class ClientPluginLoaderService extends PluginLoaderService {
   }
 
   load<T>(pluginName: string): Promise<NgModuleFactory<T>> {
+    this.endpoint.replace(':name', pluginName);
+    this.endpoint.replace(':namespace', 'default');
     const plugins = this.pluginsConfigService_.pluginsMetadata();
     const plugin = plugins.find(p => p.name === pluginName);
     if (!plugin) {
@@ -48,13 +54,14 @@ export class ClientPluginLoaderService extends PluginLoaderService {
         throw Error($localize`Can't find dependency "${dep}" for plugin "${pluginName}"`);
       }
 
+
       return systemJS.import(dependency.path).then(m => {
         window['define'](dep, [], () => m.default);
       });
     });
 
     return Promise.all(depsPromises).then(() => {
-      return systemJS.import(plugin.path).then(module => module.default.default);
+      return systemJS.import(this.endpoint).then(module => module.default.default);
     });
   }
 }
